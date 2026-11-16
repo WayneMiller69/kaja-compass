@@ -1,0 +1,163 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaja Compass</title>
+<style>
+  body {
+    margin: 0;
+    padding: 25px 15px;
+    background: #102b29;
+    color: #fff5d9;
+    font-family: Arial, sans-serif;
+    text-align: center;
+  }
+  h1 { color: #e7bd65; }
+  .compass {
+    width: 260px;
+    height: 260px;
+    border: 5px solid #e7bd65;
+    border-radius: 50%;
+    margin: 35px auto;
+    position: relative;
+    background: #183b38;
+  }
+  .north {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  #arrow {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    border-left: 19px solid transparent;
+    border-right: 19px solid transparent;
+    border-bottom: 105px solid #e7bd65;
+    transform-origin: center center;
+    transform: translate(-50%, -100%) rotate(0deg);
+  }
+  button {
+    padding: 15px 25px;
+    font-size: 17px;
+    background: #e7bd65;
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+  }
+  #status { line-height: 1.6; }
+</style>
+</head>
+<body>
+<h1>KAJA COMPASS</h1>
+<p>Finding the sacred direction of Besakih</p>
+
+<div class="compass">
+  <div class="north">N</div>
+  <div id="arrow"></div>
+</div>
+
+<p id="status">Press Start to locate Besakih.</p>
+<button id="start">Start Compass</button>
+<p id="distance"></p>
+<p><small>Reference: Pura Agung Besakih, Bali</small></p>
+
+<script>
+const besakih = {
+  lat: -8.374,
+  lon: 115.451
+};
+
+let bearing = 0;
+let heading = null;
+
+function radians(n) {
+  return n * Math.PI / 180;
+}
+
+function degrees(n) {
+  return n * 180 / Math.PI;
+}
+
+function calculateBearing(lat, lon) {
+  const a = radians(lat);
+  const b = radians(besakih.lat);
+  const d = radians(besakih.lon - lon);
+  const y = Math.sin(d) * Math.cos(b);
+  const x = Math.cos(a) * Math.sin(b) -
+    Math.sin(a) * Math.cos(b) * Math.cos(d);
+  return (degrees(Math.atan2(y, x)) + 360) % 360;
+}
+
+function updateArrow() {
+  if (heading === null) return;
+  const angle = (bearing - heading + 360) % 360;
+  document.getElementById("arrow").style.transform =
+    `translate(-50%, -100%) rotate(${angle}deg)`;
+}
+
+function orientationHandler(event) {
+  if (event.webkitCompassHeading != null) {
+    heading = event.webkitCompassHeading;
+  } else if (event.absolute && event.alpha != null) {
+    heading = (360 - event.alpha) % 360;
+  }
+  updateArrow();
+}
+
+document.getElementById("start").onclick = async () => {
+  const status = document.getElementById("status");
+  status.textContent = "Requesting location...";
+
+  if (!navigator.geolocation) {
+    status.textContent = "Location is not supported.";
+    return;
+  }
+
+  try {
+    if (typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function") {
+      const permission =
+        await DeviceOrientationEvent.requestPermission(true);
+      if (permission !== "granted") {
+        status.textContent = "Compass permission denied.";
+        return;
+      }
+    }
+
+    window.addEventListener(
+      "deviceorientationabsolute", orientationHandler, true
+    );
+    window.addEventListener(
+      "deviceorientation", orientationHandler, true
+    );
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        bearing = calculateBearing(lat, lon);
+        status.textContent =
+          `Besakih bearing: ${Math.round(bearing)}° from north.`;
+        document.getElementById("distance").textContent =
+          "Turn your phone to follow the gold arrow.";
+        updateArrow();
+      },
+      error => {
+        status.textContent =
+          "Location unavailable: " + error.message;
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  } catch (error) {
+    status.textContent = "Error: " + error.message;
+  }
+};
+</script>
+</body>
+</html>
